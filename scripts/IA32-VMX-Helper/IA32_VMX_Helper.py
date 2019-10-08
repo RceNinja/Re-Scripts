@@ -3,11 +3,9 @@ __license__ = "MIT"
 __version__ = "2.0.0"
 
 
-
 """
 You can use this script to find and decode all (I hope!) MSRs and VMCSs in hypervisor binaries,
 it also has a siple gui that enables you to search in founded values by Adddress, Name and Const values
-
 In addition to searching and decoding, you can set proper comments or symbolic constant on these values
 automatically
 """
@@ -16,12 +14,12 @@ automatically
 import collections
 import os
 
+# IDAPython 
 import idaapi
 import idautils
 import idc
 import struct
 # ------------------------------------------------------------------------------------- #
-
 """
 If you enable this mode, the script will try to find and decode more MSRs and VMCS by appling more
 analysis on the binary, BUT because of linear analysis there is some false positives, which can cause 
@@ -1910,9 +1908,6 @@ class Ia32MsrAnalyzePass(object):
         mnemonic = idc.GetMnem(inst_ea)
         return mnemonic =='rdmsr' or mnemonic=='wrmsr'
 
-
-
-
     def SetSymbolcsConstantOfMsrCode(self,inst_ea,msr_code):
         ret = GetEnumItemByConst(msr_code,self.symbolic_constants)
         if ret == None: 
@@ -1931,7 +1926,6 @@ class Ia32MsrAnalyzePass(object):
                     reg_name = curr_inst.operand_1
                     rev_inst = Instruction_t(curr_inst.inst_ea)
 
-                    
                     if(reg_name[-2:] == 'ax' and rev_inst.PrevInstruction.IsCallInstruction()):
                         """
                         rcx value came from a function call
@@ -1992,7 +1986,7 @@ class Ia32MsrAnalyzePass(object):
 
             if(msr_code == None):
                 msr_name = 'Not imm value'
-                msr_name = 'Not imm value'
+                msr_hex  = 'Not imm value'
             else:
                 msr_name = self.GetMsrName(msr_code)
                 msr_hex  = PrettyHex(msr_code)
@@ -2004,7 +1998,7 @@ class Ia32MsrAnalyzePass(object):
             if(self.enable_colorize):
                 idc.SetColor(self.inst_ea,idc.CIC_ITEM, self.color)
 
-            if(self.enable_symbolic_constants):
+            if(self.enable_symbolic_constants and msr_code != None):
                 self.SetSymbolcsConstantOfMsrCode(self.msr_code_imm_ea,msr_code)
 
             self.gui_report_rows.append(ReportEntry(
@@ -2125,16 +2119,6 @@ class Ia32VmcsAnalyzePass(object):
                 self.vmcs_code_imm_ea = curr_inst.inst_ea
                 return 0
 
-    @property
-    def CommentText(self):
-        """
-        Will return proper comment message for all of vmread/vmwrite instructions in the code
-        """
-        if(self.inst_t.mnemonic == 'vmread'):
-            return '__vmread({} ,[OUT] {})'.format(self.vmcs_code_name,self.GetValueRegister())
-        elif(self.inst_t.mnemonic == 'vmwrite'):
-            return '__vmwrite({} ,[IN] {})'.format(self.vmcs_code_name,self.GetValueRegister())
-
     def GetVmcsName(self,vmcs_code):
         name = self.ia32_vmcs_db.get(vmcs_code)
         if (name == None):
@@ -2168,7 +2152,7 @@ class Ia32VmcsAnalyzePass(object):
             if(self.enable_colorize):
                 idc.SetColor(self.inst_ea,idc.CIC_ITEM, self.color)
 
-            if(self.enable_symbolic_constants):
+            if(self.enable_symbolic_constants and vmcs_code != None):
                 self.SetSymbolcsConstantOfVmcsCode(self.vmcs_code_imm_ea,vmcs_code)
 
             self.gui_report_rows.append(ReportEntry(
@@ -2225,7 +2209,6 @@ class Ia32VmxHelper(idaapi.plugin_t):
     def run(self,_=0):
         only_show = idc.AskYN(1,'Only show the result')
         if(only_show == 0):
-            
             add_enums = idc.AskYN(0,'Do you want to add symbolic constants enums?, **You Only need to do this for once not more!**')
             if(add_enums == 1):
                 AddSymbolicConstantsEnumsToIda()
