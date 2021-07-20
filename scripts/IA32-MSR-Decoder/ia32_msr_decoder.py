@@ -1,5 +1,6 @@
 #
 # Coded by @RceNinja 2019
+# Updated by @assaf_carlsbad 2021
 #
 
 import collections
@@ -7,6 +8,7 @@ import logging
 import os
 import idaapi
 import idautils
+import ida_bytes
 import idc
 
 msr_list = {
@@ -717,23 +719,23 @@ msr_list = {
 class IdaPlugin(object):
     def GetMsrCodeFromOperand(self,ea):
         while True:
-            ea = idc.PrevAddr(ea)
-            mnemonic = idc.GetMnem(ea)
-            operand = idc.GetOpnd(ea, 0)
+            ea = ida_bytes.prev_addr(ea)
+            mnemonic = idc.print_insn_mnem(ea)
+            operand = idc.print_operand(ea, 0)
 
             # Not imm value :-(
             if mnemonic == "lea" and ("ecx" in operand or "rcx" in operand):
                 return None
 
             if mnemonic == "mov" and ("ecx" in operand or "rcx" in operand):
-                if idc.GetOpType(ea,1) == idaapi.idaapi.o_imm:
-                    return idc.GetOperandValue(ea, 1)
+                if idc.get_operand_type(ea,1) == idaapi.o_imm:
+                    return idc.get_operand_value(ea, 1)
                 else:
                     return None
                 #     return 'Not imm' + idc.GetDisasm(ea)
 
     def GetJumpAddr(self,call_addr, func_ea):
-        func_addr = idc.LocByName(idc.GetFunctionName(func_ea))
+        func_addr = idc.get_name_ea_simple(idc.get_func_name(func_ea))
         ret = int(call_addr - func_addr)
         return hex(ret).replace("0x", "")
 
@@ -749,10 +751,26 @@ class IdaPlugin(object):
 
         return msr_code_hex
 
+    def SetComment(self, inst_ea, cmt):
+        idc.set_cmt(inst_ea, cmt, 0)
+        idc.set_color(inst_ea,idc.CIC_ITEM,0xf8abef)
+        
+        try:
+            import ida_hexrays
+            cfunc = ida_hexrays.decompile(inst_ea)
+            itp = ida_hexrays.ITP_SEMI
+            tl = ida_hexrays.treeloc_t()
+            tl.ea = inst_ea
+            tl.itp = itp
+            cfunc.set_user_cmt(tl, cmt)
+            cfunc.save_user_cmts()
+        except:
+            pass
+
     def PrintMsrTable(self,msr_code ,function_ea,inst_ea ):
-        mnemonic = idc.GetMnem(inst_ea)
+        mnemonic = idc.print_insn_mnem(inst_ea)
         call_addr = self.GetJumpAddr(inst_ea, function_ea)
-        function_name = idc.GetFunctionName(function_ea)+ '+' + call_addr
+        function_name = idc.get_func_name(function_ea)+ '+' + call_addr
         dwSize = 30 - len(function_name)
         delimeter = " " * dwSize
 
@@ -768,32 +786,31 @@ class IdaPlugin(object):
         else:
             msr_name = msr_list.get(int(msr_code_hex, 16))
 
-        idc.MakeComm(inst_ea, '{}({})'.format(mnemonic,msr_name))
-        idc.SetColor(inst_ea,idc.CIC_ITEM,0xf8abef)
+        self.SetComment(inst_ea, '{}({})'.format(mnemonic,msr_name))
 
         msr_name_delimeter = (" " * (15 - len(msr_code_hex)))
 
-        print '{}{}| {} | {} {} | {}'.format(function_name,
+        print('{}{}| {} | {} {} | {}'.format(function_name,
                                              delimeter,
                                              mnemonic,
                                              msr_code_hex,
                                              msr_name_delimeter,
-                                             msr_name)
+                                             msr_name))
 
     def Run(self):
         for function_ea in idautils.Functions():
             for inst_ea in idautils.FuncItems(function_ea):
-                if idaapi.isCode(idaapi.getFlags(inst_ea)):
-                    mnemonic = idc.GetMnem(inst_ea)
+                if idaapi.is_code(idaapi.get_flags(inst_ea)):
+                    mnemonic = idc.print_insn_mnem(inst_ea)
                     if(mnemonic =='rdmsr' or mnemonic=='wrmsr'):
                         msr_code = self.GetMsrCodeFromOperand(inst_ea)
                         self.PrintMsrTable(msr_code,function_ea,inst_ea)
 
 
 def main():
-    print '-'*100
-    print '[!] Extracted MSRs from [{}]'.format(idaapi.get_input_file_path() )
-    print '-'*100
+    print('-'*100)
+    print('[!] Extracted MSRs from [{}]'.format(idaapi.get_input_file_path() ))
+    print('-'*100)
 
     IdaPlugin().Run()
 
