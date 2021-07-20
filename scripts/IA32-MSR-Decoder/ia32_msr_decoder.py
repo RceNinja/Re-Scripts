@@ -750,6 +750,22 @@ class IdaPlugin(object):
 
         return msr_code_hex
 
+    def SetComment(self, inst_ea, cmt):
+        idc.set_cmt(inst_ea, cmt, 0)
+        idc.set_color(inst_ea,idc.CIC_ITEM,0xf8abef)
+        
+        try:
+            import ida_hexrays
+            cfunc = ida_hexrays.decompile(inst_ea)
+            itp = ida_hexrays.ITP_SEMI
+            tl = ida_hexrays.treeloc_t()
+            tl.ea = inst_ea
+            tl.itp = itp
+            cfunc.set_user_cmt(tl, cmt)
+            cfunc.save_user_cmts()
+        except:
+            pass
+
     def PrintMsrTable(self,msr_code ,function_ea,inst_ea ):
         mnemonic = idc.print_insn_mnem(inst_ea)
         call_addr = self.GetJumpAddr(inst_ea, function_ea)
@@ -769,8 +785,7 @@ class IdaPlugin(object):
         else:
             msr_name = msr_list.get(int(msr_code_hex, 16))
 
-        idc.set_cmt(inst_ea, '{}({})'.format(mnemonic,msr_name), 0)
-        idc.set_color(inst_ea,idc.CIC_ITEM,0xf8abef)
+        self.SetComment(inst_ea, '{}({})'.format(mnemonic,msr_name))
 
         msr_name_delimeter = (" " * (15 - len(msr_code_hex)))
 
